@@ -631,6 +631,7 @@ void DW1000_init(void)
 	dwt_setpanid(g_DevConfig.PanID);//设置PAN ID 组号
     dwt_enableframefilter(DWT_FF_DATA_EN | DWT_FF_ACK_EN);  //设置帧过滤模式开启
 
+    dwt_setfinegraintxseq(0); // 启用外置 PA 前关闭细粒度 TX 时序
     dwt_setlnapamode(1, 1);//设置外置PA和LNA控制开启
     dwt_setleds(DWT_LEDS_ENABLE | DWT_LEDS_INIT_BLINK);//设置DW3000控制的收发指示灯开启，低功耗时可注释掉
 
