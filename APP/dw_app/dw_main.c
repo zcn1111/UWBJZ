@@ -577,11 +577,6 @@ void DW1000_init(void)
         inst_poll2final_time = ((FIRST_RESP_SEND_110K + MAX_AHCHOR_NUMBER * inst_data_interval) * UUS_TO_DWT_TIME);
     }
 	
-	/* 配置发送功率参数 按默认值 */
-	txconfig_options.power = TX_POWER;
-    tx_power = txconfig_options.power;
-    dwt_configuretxrf(&txconfig_options);//设置发射功率和pg值
-
 	/* 读设备参数配置 */
 	if (ReadDevConfig(&g_DevConfig, sizeof(g_DevConfig)) == false)
 	{
@@ -608,6 +603,15 @@ void DW1000_init(void)
 	/* 配置ID和组ID */
 	dev_id = g_DevConfig.DeviceID;
 	group_id = 0;
+
+    /* A3 近距离对照：粗增益由 6 dB 降至 0 dB，细增益保持 14 dB。 */
+    txconfig_options.power = TX_POWER;
+    if ((instance_mode == ANCHOR) && (dev_id == 3) && (inst_dataRate == DWT_BR_6M8))
+    {
+        txconfig_options.power = 0xDCDCDCDCUL;
+    }
+    tx_power = txconfig_options.power;
+    dwt_configuretxrf(&txconfig_options);
 
 	/* 配置天线延迟 按默认值 */
 	/* 标签天线延迟 使用默认16500 */
