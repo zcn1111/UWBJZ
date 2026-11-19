@@ -1017,11 +1017,6 @@
               <FilePath>..\APP\dw_app\instance_anchor.c</FilePath>
             </File>
             <File>
-              <FileName>uwb_diag.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\APP\dw_app\uwb_diag.c</FilePath>
-            </File>
-            <File>
               <FileName>instance_tag.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\APP\dw_app\instance_tag.c</FilePath>
