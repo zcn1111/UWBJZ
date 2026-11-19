@@ -46,7 +46,7 @@
 
 #if defined (LD_PA)
 #define ANT_DLY                         16500	//默认16500
-#define TX_POWER                        0X9c9c9c9c
+#define TX_POWER                        0x1F1F1F1FUL // DW1000 发射增益最高档
 #endif
 
 

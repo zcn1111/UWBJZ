@@ -604,12 +604,8 @@ void DW1000_init(void)
 	dev_id = g_DevConfig.DeviceID;
 	group_id = 0;
 
-    /* A3 近距离对照：粗增益由 6 dB 降至 0 dB，细增益保持 14 dB。 */
+    /* 配置发送功率。 */
     txconfig_options.power = TX_POWER;
-    if ((instance_mode == ANCHOR) && (dev_id == 3) && (inst_dataRate == DWT_BR_6M8))
-    {
-        txconfig_options.power = 0xDCDCDCDCUL;
-    }
     tx_power = txconfig_options.power;
     dwt_configuretxrf(&txconfig_options);
 
