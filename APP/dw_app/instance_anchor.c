@@ -1,4 +1,5 @@
 #include "instance.h"
+#include "uwb_diag.h"
 #include "bsp_dw1000.h"
 extern double dwt_getrangebias(uint8 chan, float range, uint8 prf);
 //ImuData_t imudata;
@@ -18,6 +19,8 @@ static uint64_t final_rx_ts;
 /* 发送和接收数据中断标志 */
 static volatile uint8_t rx_status = RX_WAIT;
 static volatile uint8_t tx_status = TX_WAIT;
+static volatile uint32_t rx_event_status;
+static volatile uint16_t rx_frame_len;
 
 /* 保存当前ID标签的测距值，下次发送resp时发给标签 */
 typedef struct {
@@ -70,6 +73,7 @@ void anchor_app(void)
             }
             else if((rx_status == RX_TIMEOUT) || (rx_status == RX_ERROR))  //接收数据错误，重新开启接收
             {
+                uwb_diag_rx_fault(&g_uwb_diag.poll, rx_event_status);
                 state = STA_INIT_POLL_SYNC;
                 //led_toggle(LED1);
             }
@@ -149,8 +153,17 @@ void anchor_app(void)
                 battery = rx_buffer[POLL_MSG_BATTERY_IDX];
                 if(recv_tag_id >= inst_slot_number)             //标签ID如果大于标签总容量则退出
                 {
+                    UWB_DIAG_INC(g_uwb_diag.poll.rejected);
                     state = STA_INIT_POLL_SYNC;
                     break;
+                }
+                if (rx_frame_len == POLL_MSG_LEN + FCS_LEN)
+                {
+                    UWB_DIAG_INC(g_uwb_diag.poll.ok);
+                }
+                else
+                {
+                    UWB_DIAG_INC(g_uwb_diag.poll.rejected);
                 }
                 
                 for(int i = 0; i < 10; i++)  //接收用户字节
@@ -193,6 +206,7 @@ void anchor_app(void)
 #endif
             else //非POLL数据重新开启接收POLL
             {
+                UWB_DIAG_INC(g_uwb_diag.poll.rejected);
                 state = STA_INIT_POLL_SYNC;
             }
 
@@ -238,6 +252,7 @@ void anchor_app(void)
                     int ret = dwt_rxenable(DWT_START_RX_DELAYED);          //延时开启接收机
                     if(ret == DWT_ERROR)
                     {
+                        UWB_DIAG_INC(g_uwb_diag.peer_rx_late);
 						state = STA_INIT_POLL_SYNC;
                         break;
 						
@@ -266,6 +281,7 @@ void anchor_app(void)
                 int ret = dwt_rxenable(DWT_START_RX_DELAYED);            //延时开启接收机
                 if(ret == DWT_ERROR)
                 {
+                    UWB_DIAG_INC(g_uwb_diag.final.late);
                     state = STA_INIT_POLL_SYNC;
                     break;
                 }
@@ -346,19 +362,30 @@ void anchor_app(void)
             int ret = dwt_starttx(DWT_START_TX_DELAYED);  //延时发送
             if(ret == DWT_ERROR)
             {
+                UWB_DIAG_INC(g_uwb_diag.resp.start_fail);
                 dwt_forcetrxoff();
                 state = STA_INIT_POLL_SYNC;
                 break;
             }
 			//等待发送结束
 			uint32_t tx_wait=uwTick;
+            bool tx_completed = true;
 			while(tx_status == TX_WAIT)
 			{
 				if (JudgeTick(tx_wait, 10) == true)
 				{
+                    tx_completed = false;
 					break;
 				}					
 			}
+            if (tx_completed)
+            {
+                UWB_DIAG_INC(g_uwb_diag.resp.sent);
+            }
+            else
+            {
+                UWB_DIAG_INC(g_uwb_diag.resp.completion_timeout);
+            }
 //            while(tx_status == TX_WAIT);//等待发送结束，状态在中断回调函数中变更
 			tx_status = TX_WAIT;
 			state = STA_SORR_RESP;
@@ -419,6 +446,7 @@ void anchor_app(void)
             }
             else if((rx_status == RX_TIMEOUT) || (rx_status == RX_ERROR))
             {
+                uwb_diag_rx_fault(&g_uwb_diag.final, rx_event_status);
                 rx_status = RX_WAIT;
                 state = STA_INIT_POLL_SYNC;
                 range_status = RANGE_ERROR; 
@@ -426,8 +454,20 @@ void anchor_app(void)
             break;
 
         case STA_RECV_FINAL:  //接收到final消息，数据处理
-                //验证function code为final，与poll相同的range number 和相同的tag id 则进行TWR测距计算 
-            if ((rx_buffer[FUNC_CODE_IDX] == FUNC_CODE_FINAL) && (rx_buffer[RANGE_NB_IDX] == range_nb) && (rx_buffer[SENDER_SHORT_ADD_IDX] == recv_tag_id))  
+        {
+            const bool final_matches = (rx_buffer[FUNC_CODE_IDX] == FUNC_CODE_FINAL) &&
+                                       (rx_buffer[RANGE_NB_IDX] == range_nb) &&
+                                       (rx_buffer[SENDER_SHORT_ADD_IDX] == recv_tag_id);
+            const bool diag_final_match = final_matches && (rx_frame_len == FIANL_MSG_LEN + FCS_LEN);
+            if (diag_final_match)
+            {
+                UWB_DIAG_INC(g_uwb_diag.final.ok);
+            }
+            else
+            {
+                UWB_DIAG_INC(g_uwb_diag.final.rejected);
+            }
+            if (final_matches)
             {
                 distance_report[anc_id] = prev_range[recv_tag_id].distance;  //将上次的测距值写入distance_report用于串口输出
                 group_report[anc_id] = group_id & 0x7f;
@@ -487,6 +527,10 @@ void anchor_app(void)
                     //更新prev_range为本次测距值
                     prev_range[recv_tag_id].distance = distance_now_m * 1000;//单位转换为mm
                     prev_range[recv_tag_id].range_nb = range_nb;
+                    if (diag_final_match)
+                    {
+                        UWB_DIAG_INC(g_uwb_diag.distance_updates);
+                    }
 
 //					if(rx_buffer[FINAL_MSG_A4_GROUP_ID_IDX] == 1 && g_CalFlag == 0)
 //					{
@@ -525,6 +569,7 @@ void anchor_app(void)
 			
             break;
         
+        }
         default:
             break;
     }
@@ -543,6 +588,7 @@ void anchor_app(void)
 */
 void anc_rx_ok_cb(const dwt_cb_data_t *cb_data)
 {
+    rx_frame_len = cb_data->datalength;
     rx_status = RX_OK;
     if (cb_data->datalength <= FRAME_LEN_MAX)  //接收数据
     {
@@ -562,8 +608,8 @@ void anc_rx_ok_cb(const dwt_cb_data_t *cb_data)
 */
 void anc_rx_to_cb(const dwt_cb_data_t *cb_data)
 {
+    rx_event_status = cb_data->status;
     rx_status = RX_TIMEOUT;
-    UNUSED(cb_data);
 }
 
 /*! ------------------------------------------------------------------------------------------------------------------
@@ -577,8 +623,8 @@ void anc_rx_to_cb(const dwt_cb_data_t *cb_data)
 */
 void anc_rx_err_cb(const dwt_cb_data_t *cb_data)
 {
+    rx_event_status = cb_data->status;
     rx_status = RX_ERROR;
-    UNUSED(cb_data);
 }
 
 /*! ------------------------------------------------------------------------------------------------------------------

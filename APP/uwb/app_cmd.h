@@ -35,6 +35,7 @@ DbgResult_t Cmd_SetDevConfig(uint8_t Argc, char *Argv[]);
 DbgResult_t Cmd_SetSolutionMode(uint8_t Argc, char *Argv[]);
 DbgResult_t Cmd_SetShowMode(uint8_t Argc, char *Argv[]);
 DbgResult_t Cmd_SetUserdata(uint8_t Argc, char *Argv[]);
+DbgResult_t Cmd_UwbDiag(uint8_t Argc, char *Argv[]);
 /******* 命令表 X-Macro *******/
 /* 加删命令只改这里，其他地方自动生效 */
 #define CMD_TABLE                        	\
@@ -45,6 +46,7 @@ DbgResult_t Cmd_SetUserdata(uint8_t Argc, char *Argv[]);
 	X("setconfig",	Cmd_SetDevConfig)		\
 	X("setmode",	Cmd_SetSolutionMode)	\
 	X("setshow",	Cmd_SetShowMode)		\
+	X("uwbdiag",	Cmd_UwbDiag)		\
 	X("userdata",	Cmd_SetUserdata)
 
 /* 自动生成枚举，CMD_COUNT = 命令总数 */

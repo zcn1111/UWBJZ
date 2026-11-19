@@ -2,6 +2,7 @@
 #include "BSP.h"
 #include "string.h"
 #include "instance.h"
+#include "uwb_diag.h"
 //#include "app_glovar.h"
 #include "uwb_gps_transform.h"
 #include "g_GlobalValDef.h"
@@ -708,4 +709,32 @@ DbgResult_t Cmd_SetUserdata(uint8_t Argc, char *Argv[])
 		}
 		return DBGRET_OK;
 	}
+}
+
+DbgResult_t Cmd_UwbDiag(uint8_t Argc, char *Argv[])
+{
+    if (Argc != 1)
+    {
+        return DBGRET_ERR_ARG_ILLEGAL;
+    }
+    if (instance_mode != ANCHOR)
+    {
+        debug_printf("UWB_DIAG requires anchor role.\r\n");
+        return DBGRET_ERR_OTHER;
+    }
+    if (strcasecmp(Argv[1], "start") == 0)
+    {
+        uwb_diag_start();
+        return DBGRET_OK;
+    }
+    if (strcasecmp(Argv[1], "stop") == 0)
+    {
+        if (uwb_diag_stop())
+        {
+            return DBGRET_OK;
+        }
+        debug_printf("UWB_DIAG capture is not active.\r\n");
+        return DBGRET_ERR_NODATA;
+    }
+    return DBGRET_ERR_ARG_ILLEGAL;
 }
