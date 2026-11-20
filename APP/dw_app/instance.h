@@ -57,30 +57,29 @@
 #endif
 
 
-/* 数据帧超时及延时时间*/
-#define PRE_TIMEOUT                     15
+/* 40m对照测试：两端同步选择速率，6.8M沿用110K的长前导码和收发时序。 */
+#define UWB_PHY_DATA_RATE                DWT_BR_6M8
+#if (UWB_PHY_DATA_RATE != DWT_BR_110K) && (UWB_PHY_DATA_RATE != DWT_BR_6M8)
+#error "UWB_PHY_DATA_RATE must be DWT_BR_110K or DWT_BR_6M8"
+#endif
+
+/* 时隙单位为ms，收发延时/帧超时为UUS，前导码检测超时为PAC个数。 */
+#define PRE_TIMEOUT                     15      //硬件按(PRE_TIMEOUT + 1)个PAC计时
 
 #if (MAX_AHCHOR_NUMBER == 4)
 #define ONE_SLOT_TIME_MS_110K           28
 #define ONE_SLOT_TIME_MS_850K           12
-#define ONE_SLOT_TIME_MS_6P8M           10
+#define ONE_SLOT_TIME_MS_6P8M           ONE_SLOT_TIME_MS_110K
 #elif (MAX_AHCHOR_NUMBER == 8)
 #define ONE_SLOT_TIME_MS_110K           70//50
 #define ONE_SLOT_TIME_MS_850K           20
-#define ONE_SLOT_TIME_MS_6P8M           15
+#define ONE_SLOT_TIME_MS_6P8M           ONE_SLOT_TIME_MS_110K
 #elif (MAX_AHCHOR_NUMBER == 1)
 #define ONE_SLOT_TIME_MS_110K           70//50
 #define ONE_SLOT_TIME_MS_850K           20
-#define ONE_SLOT_TIME_MS_6P8M           15
+#define ONE_SLOT_TIME_MS_6P8M           ONE_SLOT_TIME_MS_110K
 
 #endif
-
-#define FINAL_RX_TIMEOUT_6P8M           600
-#define RESP_RX_TIMEOUT_6P8M            450
-#define FIRST_RESP_SEND_6P8M            900     //6.8M通信速率下，第一个resp消息发送延时
-#define DATA_INTERVAL_TIME_6P8M         1100    //6.8M通信速率下，相邻消息间隔时间
-#define ANC_RESP_SEND_BACK_6P8M         100     //6.8M通信速率下，基站延后发送RESP消息时间
-#define TAG_FINALE_SEND_BACK_6P8M       100     //6.8M通信速率下，标签延后发送FINAL消息时间
 
 #define FINAL_RX_TIMEOUT_110K           9000
 #define RESP_RX_TIMEOUT_110K            3500
@@ -88,6 +87,14 @@
 #define DATA_INTERVAL_TIME_110K         3900    //110K通信速率下，相邻消息间隔时间
 #define ANC_RESP_SEND_BACK_110K         1080    //110K通信速率下，基站延后发送RESP消息时间
 #define TAG_FINALE_SEND_BACK_110K       1080    //110K通信速率下，标签延后发送FINAL消息时间
+
+/* 保持与110K相同的时序，用于隔离速率对成功率的影响。 */
+#define FINAL_RX_TIMEOUT_6P8M           FINAL_RX_TIMEOUT_110K
+#define RESP_RX_TIMEOUT_6P8M            RESP_RX_TIMEOUT_110K
+#define FIRST_RESP_SEND_6P8M            FIRST_RESP_SEND_110K
+#define DATA_INTERVAL_TIME_6P8M         DATA_INTERVAL_TIME_110K
+#define ANC_RESP_SEND_BACK_6P8M         ANC_RESP_SEND_BACK_110K
+#define TAG_FINALE_SEND_BACK_6P8M       TAG_FINALE_SEND_BACK_110K
 
 #define FINAL_RX_TIMEOUT_850K           1300
 #define RESP_RX_TIMEOUT_850K            800     

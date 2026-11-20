@@ -469,17 +469,17 @@ void DW1000_init(void)
 //    uint8_t e2prom_data_read[EEP_UNIT_SIZE] = {0};
 //    uint8_t e2prom_data_write[EEP_UNIT_SIZE] = {0};
 
-    static dwt_config_t config1 = {             //6.8M
+    static dwt_config_t config1 = {             //6.8M：长前导码对照配置
         .chan = 2,                              /* Channel number. */
         .prf = DWT_PRF_64M,                     /* Pulse repetition frequency. */
-        .txPreambLength = DWT_PLEN_64,          /* Preamble length. Used in TX only. */
-        .rxPAC = DWT_PAC8,                      /* Preamble acquisition chunk size. Used in RX only. */
+        .txPreambLength = DWT_PLEN_1024,        /* Same preamble length as 110K. */
+        .rxPAC = DWT_PAC32,                     /* PAC for 1024-symbol preambles. */
         .txCode = 10,                           /* TX preamble code. Used in TX only. */
         .rxCode = 10,                           /* RX preamble code. Used in RX only. */
         .nsSFD = 1,                             /* 0 to use standard SFD, 1 to use non-standard SFD. */
         .dataRate = DWT_BR_6M8,                 /* Data rate. */
         .phrMode = DWT_PHRMODE_STD,             /* PHY header mode. */
-        .sfdTO = (65 + DW_NS_SFD_LEN_6M8 - 8)   /* SFD timeout (preamble length + 1 + SFD length - PAC size). Used in RX only. */
+        .sfdTO = (1025 + DW_NS_SFD_LEN_6M8 - 32) /* 1024 + 1 + 8 - 32 = 1001. */
     };
 
     static dwt_config_t config2 = {                 //110K
@@ -514,6 +514,7 @@ void DW1000_init(void)
         .PGdly = 0xc2,            /* PG delay */
         .power = TX_POWER         /* TX power */
     };
+    dwt_config_t *active_config = (UWB_PHY_DATA_RATE == DWT_BR_110K) ? &config2 : &config1;
 
 	/* 复位DW1000 初始化DW1000前SPI配置为低速 */
 //    reset_DW1000(); /* Target specific drive of RSTn line into DW1000 low for a period. */
@@ -545,19 +546,12 @@ void DW1000_init(void)
      * 8号：硬件测距卡尔曼滤波开关，on=开启，off=关闭（默认on）
      */
 	
-	/* 使用6.8MHz配置 */
-	inst_slot_number = MAX_TAG_NUMBER_SW2_ON;
-	dwt_configure(&config1);//设置射频通信参数
-	inst_dataRate = config1.dataRate;
-	inst_ch = config1.chan;
-	inst_prf = config1.prf;
-
-//	/* 使用110KHz配置 */
-//	inst_slot_number = MAX_TAG_NUMBER_SW2_OFF;
-//	dwt_configure(&config2);//设置射频通信参数
-//	inst_dataRate = config2.dataRate;
-//	inst_ch = config2.chan;
-//	inst_prf = config2.prf;
+	/* 两种速率采用相同标签容量，使默认测距周期均为28ms * 5 = 140ms。 */
+	inst_slot_number = MAX_TAG_NUMBER_SW2_OFF;
+	dwt_configure(active_config);
+	inst_dataRate = active_config->dataRate;
+	inst_ch = active_config->chan;
+	inst_prf = active_config->prf;
 	
 	/* 配置通信时间 */
     if(inst_dataRate == DWT_BR_6M8)
@@ -586,10 +580,11 @@ void DW1000_init(void)
 		g_DevConfig.PanID = PAN_ID;
 		g_DevConfig.AntDelay = ANT_DLY;
 		g_DevConfig.SolutionMode = 0;	//测距模式
-		g_DevConfig.DwConfig = config2;
 		g_DevConfig.AnchorHeight = 1.9;	//默认基站高度1.9m 标签高度0.1m(10cm)
 		g_DevConfig.TagHeight = 0.1;
 	}
+	/* 参数查询始终显示本次实际配置，覆盖Flash内保存的旧射频参数。 */
+	g_DevConfig.DwConfig = *active_config;
 	if (g_DevConfig.DeviceMode == ANCHOR)	//当前设备是基站 默认不显示距离
 	{
 		g_DevConfig.ShowSolution = 0;
@@ -646,6 +641,14 @@ void DW1000_init(void)
 	}
 	
 	
+    debug_printf("[DW1000] rate=%s CH=%u PLEN=1024 PAC=32 SFD_TO=%u\r\n",
+                 (inst_dataRate == DWT_BR_110K) ? "110K" : "6.8M",
+                 (unsigned int)inst_ch, (unsigned int)active_config->sfdTO);
+    debug_printf("[DW1000] slot=%ums slots=%u period=%ums RESP_TO=%lu FINAL_TO=%lu UUS\r\n",
+                 (unsigned int)inst_one_slot_time, (unsigned int)inst_slot_number,
+                 (unsigned int)(inst_one_slot_time * inst_slot_number),
+                 (unsigned long)inst_resp_rx_timeout, (unsigned long)inst_final_rx_timeout);
+
     //设置中断标志
     dwt_setinterrupt(DWT_INT_TFRS | DWT_INT_RFCG | (DWT_INT_ARFE | DWT_INT_RFSL | DWT_INT_SFDT | DWT_INT_RPHE | DWT_INT_RFCE | DWT_INT_RFTO | DWT_INT_RXPTO), 1);
     set_instance();
