@@ -46,6 +46,7 @@ static uint8_t anc_diag_collect;
 
 void anc_diag_set_mode(uint8_t enabled, uint8_t skip_prefix, uint8_t slot)
 {
+    dwt_configeventcounters(enabled);
     if (enabled)
     {
         memset(&anc_diag, 0, sizeof(anc_diag));
@@ -67,6 +68,15 @@ void anc_diag_report(void)
         (unsigned long)anc_diag.resp_tx_err, (unsigned long)anc_diag.resp_no_irq,
         (unsigned long)anc_diag.resp_rx_late, (unsigned long)anc_diag.final_rx, slot);
     HAL_UART_Transmit(&hUSART3, (uint8_t *)line, (uint16_t)strlen(line), 50);
+    if (anc_diag_enabled)
+    {
+        /* 查询时读取硬件计数器，避免在 Resp 的关键路径增加 SPI 访问。 */
+        dwt_deviceentcnts_t events;
+        dwt_readeventcounters(&events);
+        snprintf(line, sizeof(line), "UWBdiagHW hpw=%u txw=%u txf=%u\r\n",
+            (unsigned)events.HPW, (unsigned)events.TXW, (unsigned)events.TXF);
+        HAL_UART_Transmit(&hUSART3, (uint8_t *)line, (uint16_t)strlen(line), 50);
+    }
 }
 
 
