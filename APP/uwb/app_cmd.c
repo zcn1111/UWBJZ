@@ -705,6 +705,20 @@ DbgResult_t Cmd_UwbDiag(uint8_t Argc, char *Argv[])
 	return DBGRET_OK;
 }
 
+DbgResult_t Cmd_Uwb2Power(uint8_t Argc, char *Argv[])
+{
+	if (Argc > 1 || (Argc == 1 && strcmp(Argv[1], "0") != 0 && strcmp(Argv[1], "1") != 0))
+	{
+		return DBGRET_ERR_ARG_ILLEGAL;
+	}
+	if (Argc == 1)
+	{
+		UWB2_SetPower(Argv[1][0] == '1');
+	}
+	debug_printf("UWB2 EN=%u\r\n", (unsigned)UWB2_IsPowerEnabled());
+	return DBGRET_OK;
+}
+
 /* 设置用户数据 */
 DbgResult_t Cmd_SetUserdata(uint8_t Argc, char *Argv[])
 {

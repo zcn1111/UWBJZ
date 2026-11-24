@@ -97,10 +97,6 @@ void process_deca_irq(void);
 //void led_off(led_t led);
 //void led_toggle(led_t led);
 
-void pa_pwr_on(void);
-void pa_pwr_off(void);
-
-
 //void motor_on(void);
 //void motor_off(void);
 

@@ -140,7 +140,8 @@ int main(void)
     /* 8. 使能STM32 NVIC中断 (EXTI15_10 for PB14) */
     DW1000_NVIC_Init();
     debug_printf("[DW1000] NVIC interrupt enabled\r\n");
-	DW1000_PA_HIGH();
+	/* Keep the previous UWB2 power state at boot for comparison. */
+	UWB2_SetPower(1);
 	
 	/* 根据板卡模式配置输出 */
 //	DW1000_SetGpioMode();

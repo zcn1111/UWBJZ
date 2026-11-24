@@ -162,17 +162,6 @@ void setup_DW1000RSTnIRQ(int enable)
 }
 
 
-void pa_pwr_on(void)
-{
-	DW1000_PA_HIGH();
-}
-
-void pa_pwr_off(void)
-{
-	DW1000_PA_LOW();
-}
-
-
 //void led_toggle (led_t led)
 //{
 //	switch (led)

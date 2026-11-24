@@ -99,12 +99,23 @@ void DW1000_GPIO_Init(void)
     HAL_GPIO_Init(DW1000_IRQ_GPIO_PORT, &GPIO_Initure);
 	
 
-	/* PA8 = PWR_FEM_EN */
-	GPIO_Initure.Pin = DW1000_PA_GPIO_PIN;
+	/* PA9 = UWB2_POW_CTR */
+	GPIO_Initure.Pin = UWB2_POWER_GPIO_PIN;
 	GPIO_Initure.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_Initure.Pull = GPIO_PULLDOWN;
 	GPIO_Initure.Speed = GPIO_SPEED_FREQ_HIGH;
-	HAL_GPIO_Init(DW1000_PA_GPIO_PORT, &GPIO_Initure);
+	HAL_GPIO_Init(UWB2_POWER_GPIO_PORT, &GPIO_Initure);
+}
+
+void UWB2_SetPower(uint8_t enabled)
+{
+    HAL_GPIO_WritePin(UWB2_POWER_GPIO_PORT, UWB2_POWER_GPIO_PIN,
+        enabled ? GPIO_PIN_SET : GPIO_PIN_RESET);
+}
+
+uint8_t UWB2_IsPowerEnabled(void)
+{
+    return HAL_GPIO_ReadPin(UWB2_POWER_GPIO_PORT, UWB2_POWER_GPIO_PIN) == GPIO_PIN_SET;
 }
 
 /**

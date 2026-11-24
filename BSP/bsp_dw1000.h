@@ -2,8 +2,8 @@
   ******************************************************************************
   * @file    bsp_dw1000.h
   * @brief   DW1000 UWB Transceiver Driver Header
-  * @note    SPI2: PB10=SCK, PC2=MISO, PC3=MOSI
-  *          CSN=PB2, nRST=PB11, IRQn=PB14
+  * @note    UWB1 SPI3: PB3=SCK, PB4=MISO, PB5=MOSI
+  *          CSN=PD7, nRST=PE5, IRQn=PE1
   ******************************************************************************
   */
 #ifndef __BSP_DW1000_H
@@ -32,11 +32,9 @@
 
 
 
-/*DW1000_2*/
-#define DW1000_PA_GPIO_PORT				GPIOA
-#define DW1000_PA_GPIO_PIN				GPIO_PIN_9
-#define DW1000_PA_LOW()					HAL_GPIO_WritePin(DW1000_PA_GPIO_PORT, DW1000_PA_GPIO_PIN, GPIO_PIN_RESET)
-#define DW1000_PA_HIGH()				HAL_GPIO_WritePin(DW1000_PA_GPIO_PORT, DW1000_PA_GPIO_PIN, GPIO_PIN_SET)
+/* UWB2_POW_CTR drives the U12 regulator enable for DW2_3V. */
+#define UWB2_POWER_GPIO_PORT            GPIOA
+#define UWB2_POWER_GPIO_PIN             GPIO_PIN_9
 
 
 
@@ -200,6 +198,8 @@ extern volatile uint8_t g_recvirq;
 
 /* Hardware Abstraction Layer */
 void     DW1000_GPIO_Init(void);
+void     UWB2_SetPower(uint8_t enabled);
+uint8_t  UWB2_IsPowerEnabled(void);
 void     DW1000_NVIC_Init(void);
 
 /* SPI Low-Level Functions */
