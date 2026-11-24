@@ -27,6 +27,7 @@ typedef struct {
 static prev_range_t prev_range[MAX_TAG_LIST_SIZE];
 static uint8_t resp_valid = 0x00;                    //基站数据有效标志 
 static uint8_t sr, rr; //用于控制当前基站处于resp时是发送还是接收
+static uint8_t resp_tx_slot;
 
 static struct
 {
@@ -40,14 +41,16 @@ static struct
 
 static uint8_t anc_diag_enabled;
 static uint8_t anc_diag_skip_prefix;
+static uint8_t anc_diag_selected_slot = MAX_AHCHOR_NUMBER;
 static uint8_t anc_diag_collect;
 
-void anc_diag_set_mode(uint8_t enabled, uint8_t skip_prefix)
+void anc_diag_set_mode(uint8_t enabled, uint8_t skip_prefix, uint8_t slot)
 {
     if (enabled)
     {
         memset(&anc_diag, 0, sizeof(anc_diag));
         anc_diag_skip_prefix = skip_prefix;
+        anc_diag_selected_slot = slot;
     }
     anc_diag_enabled = enabled;
     anc_diag_collect = 0;  // 等下一次有效 Poll 再开始计数
@@ -56,12 +59,13 @@ void anc_diag_set_mode(uint8_t enabled, uint8_t skip_prefix)
 void anc_diag_report(void)
 {
     char line[192];
+    unsigned slot = anc_diag_selected_slot < MAX_AHCHOR_NUMBER ? anc_diag_selected_slot : anc_id;
     snprintf(line, sizeof(line),
-        "UWBdiagAnchor id=%u on=%u skip=%u poll_rx=%lu resp_tx=%lu tx_err=%lu no_irq=%lu rx_late=%lu final_rx=%lu\r\n",
+        "UWBdiagAnchor id=%u on=%u skip=%u poll_rx=%lu resp_tx=%lu tx_err=%lu no_irq=%lu rx_late=%lu final_rx=%lu resp_slot=%u\r\n",
         (unsigned)anc_id, (unsigned)anc_diag_enabled, (unsigned)anc_diag_skip_prefix,
         (unsigned long)anc_diag.poll_rx, (unsigned long)anc_diag.resp_tx,
         (unsigned long)anc_diag.resp_tx_err, (unsigned long)anc_diag.resp_no_irq,
-        (unsigned long)anc_diag.resp_rx_late, (unsigned long)anc_diag.final_rx);
+        (unsigned long)anc_diag.resp_rx_late, (unsigned long)anc_diag.final_rx, slot);
     HAL_UART_Transmit(&hUSART3, (uint8_t *)line, (uint16_t)strlen(line), 50);
 }
 
@@ -202,17 +206,22 @@ void anchor_app(void)
                 if (anc_diag_collect)
                     anc_diag.poll_rx++;
 
+                uint8_t single_slot = anc_diag_collect && anc_diag_selected_slot < MAX_AHCHOR_NUMBER;
+                resp_tx_slot = single_slot ? anc_diag_selected_slot : anc_id;
                 sr = MAX_AHCHOR_NUMBER;
                 rr = 0x01 << anc_id;
                 state = STA_SORR_RESP;
-                if (anc_diag_collect && anc_diag_skip_prefix && anc_id > 0 && anc_id < MAX_AHCHOR_NUMBER)
+                if (single_slot || (anc_diag_collect && anc_diag_skip_prefix && anc_id > 0 && anc_id < MAX_AHCHOR_NUMBER))
                 {
-                    /* 省去本基站发送前的 RX 操作，保留发出 Resp 后剩余的槽。 */
-                    sr = MAX_AHCHOR_NUMBER - 1 - anc_id;
+                    /* 指定发射槽时只发本机 Resp，随后按原时刻等待 Final。 */
+                    sr = single_slot ? 0 : MAX_AHCHOR_NUMBER - 1 - anc_id;
                     rr = 0;
-                    dwt_enableframefilter(DWT_FF_NOTYPE_EN);
-                    dwt_setrxtimeout(inst_resp_rx_timeout);
-                    dwt_setpreambledetecttimeout(PRE_TIMEOUT);
+                    if (anc_id > 0)
+                    {
+                        dwt_enableframefilter(DWT_FF_NOTYPE_EN);
+                        dwt_setrxtimeout(inst_resp_rx_timeout);
+                        dwt_setpreambledetecttimeout(PRE_TIMEOUT);
+                    }
                     state = STA_SEND_RESP;
                 }
             }
@@ -330,11 +339,11 @@ void anchor_app(void)
             //设置resp消息发送时间
             uint64_t resp_tx_time;
             if(inst_dataRate == DWT_BR_110K)
-                resp_tx_time = (poll_rx_ts + (FIRST_RESP_SEND_110K + anc_id * inst_data_interval) * UUS_TO_DWT_TIME + (ANC_RESP_SEND_BACK_110K * UUS_TO_DWT_TIME));
+                resp_tx_time = (poll_rx_ts + (FIRST_RESP_SEND_110K + resp_tx_slot * inst_data_interval) * UUS_TO_DWT_TIME + (ANC_RESP_SEND_BACK_110K * UUS_TO_DWT_TIME));
             else if(inst_dataRate == DWT_BR_6M8)
-                resp_tx_time = (poll_rx_ts + (FIRST_RESP_SEND_6P8M + anc_id * inst_data_interval) * UUS_TO_DWT_TIME + (ANC_RESP_SEND_BACK_6P8M * UUS_TO_DWT_TIME));
+                resp_tx_time = (poll_rx_ts + (FIRST_RESP_SEND_6P8M + resp_tx_slot * inst_data_interval) * UUS_TO_DWT_TIME + (ANC_RESP_SEND_BACK_6P8M * UUS_TO_DWT_TIME));
             else if(inst_dataRate == DWT_BR_850K)   
-                resp_tx_time = (poll_rx_ts + (FIRST_RESP_SEND_850K + anc_id * inst_data_interval) * UUS_TO_DWT_TIME + (ANC_RESP_SEND_BACK_850K * UUS_TO_DWT_TIME));
+                resp_tx_time = (poll_rx_ts + (FIRST_RESP_SEND_850K + resp_tx_slot * inst_data_interval) * UUS_TO_DWT_TIME + (ANC_RESP_SEND_BACK_850K * UUS_TO_DWT_TIME));
             resp_tx_time = resp_tx_time >> 8;
             dwt_setdelayedtrxtime((uint32)resp_tx_time);
 

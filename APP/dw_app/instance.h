@@ -308,7 +308,7 @@ extern uint8_t ancrange_count;
 extern uint8_t target_ancid;
 extern uint32_t volatile next_period_time;                          //标签下次测距周期开始时间，用于防冲突管理
 void anchor_app(void);
-void anc_diag_set_mode(uint8_t enabled, uint8_t skip_prefix);
+void anc_diag_set_mode(uint8_t enabled, uint8_t skip_prefix, uint8_t slot);
 void anc_diag_report(void);
 void tag_app(void);
 extern void set_instance(void);

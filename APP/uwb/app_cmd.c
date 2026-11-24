@@ -678,28 +678,30 @@ DbgResult_t Cmd_UwbDiag(uint8_t Argc, char *Argv[])
 		debug_printf("uwbdiag requires anchor mode.\r\n");
 		return DBGRET_ERR_OTHER;
 	}
-	if (Argc > 2 || (Argc >= 1 && strcmp(Argv[1], "0") != 0 && strcmp(Argv[1], "1") != 0))
+	if (Argc > 3 || (Argc >= 1 && strcmp(Argv[1], "0") != 0 && strcmp(Argv[1], "1") != 0))
 	{
 		return DBGRET_ERR_ARG_ILLEGAL;
 	}
 
-	if (Argc == 2)
+	uint8_t params[2] = {MAX_AHCHOR_NUMBER, MAX_AHCHOR_NUMBER};
+	for (uint8_t i = 2; i <= Argc; i++)
 	{
 		char *end;
-		long slot = strtol(Argv[2], &end, 10);
-		if (Argv[1][0] != '1' || end == Argv[2] || *end != '\0' || slot < 0 || slot >= MAX_AHCHOR_NUMBER)
+		long value = strtol(Argv[i], &end, 10);
+		if (Argv[1][0] != '1' || end == Argv[i] || *end != '\0' || value < 0 || value >= MAX_AHCHOR_NUMBER)
 		{
 			return DBGRET_ERR_ARG_ILLEGAL;
 		}
-		if (slot != anc_id)
-		{
-			return DBGRET_ERR_ARG_OUTRANGE;
-		}
+		params[i - 2] = (uint8_t)value;
+	}
+	if (Argc >= 2 && params[0] != anc_id)
+	{
+		return DBGRET_ERR_ARG_OUTRANGE;
 	}
 
 	if (Argc >= 1)
 	{
-		anc_diag_set_mode(Argv[1][0] == '1', Argc == 2);
+		anc_diag_set_mode(Argv[1][0] == '1', Argc >= 2, params[1]);
 	}
 	anc_diag_report();
 	return DBGRET_OK;
