@@ -25,26 +25,19 @@ extern "C" {
 
 #include "stm32l4xx.h"
 #include "stm32l4xx_hal.h"
+#include "bsp_dw1000.h"
 
 #define BUFFLEN 	(127)   //(4096+128)
 #define BUF_SIZE	(127)
 
-/* DW1000引脚定义 - 与我们项目硬件匹配 */
-#define DW_IRQn_Pin         GPIO_PIN_14
-#define DW_IRQn_GPIO_Port   GPIOB
-#define DW_RESET_Pin        GPIO_PIN_11
-#define DW_RESET_GPIO_Port  GPIOB
-#define DW_NSS_Pin          GPIO_PIN_2
-#define DW_NSS_GPIO_Port    GPIOB
-#define DW_IRQn_EXTI_IRQn   EXTI15_10_IRQn
-
-/* PA控制引脚 - 如果没有可以定义为空操作 */
-#ifndef DW1000_PA_HIGH
-#define DW1000_PA_HIGH()
-#endif
-#ifndef DW1000_PA_LOW
-#define DW1000_PA_LOW()
-#endif
+/* 官方驱动和板级初始化共用 UWBJZ 的 DW1000 引脚定义。 */
+#define DW_IRQn_Pin         DW1000_IRQ_PIN
+#define DW_IRQn_GPIO_Port   DW1000_IRQ_GPIO_PORT
+#define DW_RESET_Pin        DW1000_RST_PIN
+#define DW_RESET_GPIO_Port  DW1000_RST_GPIO_PORT
+#define DW_NSS_Pin          DW1000_CS_PIN
+#define DW_NSS_GPIO_Port    DW1000_CS_GPIO_PORT
+#define DW_IRQn_EXTI_IRQn   DW1000_IRQ_EXTI_IRQn
 
 /* ACC_IRQ引脚 - 如果没有可以定义为任意引脚 */
 #ifndef ACC_IRQ_Pin
@@ -66,7 +59,7 @@ typedef int64_t         int64;
 
 extern volatile int32_t sys_time_diff;
 
-#define DECAIRQ_EXTI_IRQn		   (EXTI15_10_IRQn)
+#define DECAIRQ_EXTI_IRQn           DW_IRQn_EXTI_IRQn
 
 #define DW1000_RSTn					DW_RESET_Pin
 #define DW1000_RSTn_GPIO	        DW_RESET_GPIO_Port

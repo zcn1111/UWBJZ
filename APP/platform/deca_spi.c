@@ -13,8 +13,9 @@
 
 #include "deca_spi.h"
 #include "deca_device_api.h"
+#include "BSP_spi.h"
 #include "bsp_dw1000.h"
-#include "bsp_gpio.h"
+#include <string.h>
 
 /****************************************************************************//**
  *
@@ -38,20 +39,25 @@ int closespi(void)
  * @param  headerBuffer: 头部数据
  * @param  bodyLength: 数据长度
  * @param  bodyBuffer: 数据内容
- * @retval 0=成功
+ * @retval DWT_SUCCESS 或 DWT_ERROR
  */
 int writetospi(uint16_t headerLength,
 			   const uint8_t *headerBuffer,
 			   uint32_t bodyLength,
 			   const uint8_t *bodyBuffer)
 {
-	/* 直接使用SPI总线，保留官方驱动的header格式 */
+	/* 中断回调也访问 SPI3，片选期间不能插入另一笔事务。 */
+	decaIrqStatus_t irq_state = decamutexon();
 	DW1000_CS_LOW();
-	HAL_SPI_Transmit(&hSPI3, (uint8_t *)headerBuffer, headerLength, 100);
-	HAL_SPI_Transmit(&hSPI3, (uint8_t *)bodyBuffer, (uint16_t)bodyLength, 500);
+	HAL_StatusTypeDef status = HAL_SPI_Transmit(&hSPI3, (uint8_t *)headerBuffer, headerLength, 100);
+	if (status == HAL_OK && bodyLength != 0)
+	{
+		status = HAL_SPI_Transmit(&hSPI3, (uint8_t *)bodyBuffer, (uint16_t)bodyLength, 500);
+	}
 	DW1000_CS_HIGH();
+	decamutexoff(irq_state);
 
-	return 0;
+	return status == HAL_OK ? DWT_SUCCESS : DWT_ERROR;
 }
 
 /**
@@ -60,20 +66,29 @@ int writetospi(uint16_t headerLength,
  * @param  headerBuffer: 头部数据
  * @param  readlength: 读取长度
  * @param  readBuffer: 读取缓冲区
- * @retval 0=成功
+ * @retval DWT_SUCCESS 或 DWT_ERROR
  */
 int readfromspi(uint16_t headerLength,
 				const uint8_t *headerBuffer,
 				uint32_t readlength,
 				uint8_t *readBuffer)
 {
-	/* 直接使用SPI总线，保留官方驱动的header格式 */
+	decaIrqStatus_t irq_state = decamutexon();
 	DW1000_CS_LOW();
-	HAL_SPI_Transmit(&hSPI3, (uint8_t *)headerBuffer, headerLength, 100);
-	HAL_SPI_Receive(&hSPI3, readBuffer, (uint16_t)readlength, 500);
+	HAL_StatusTypeDef status = HAL_SPI_Transmit(&hSPI3, (uint8_t *)headerBuffer, headerLength, 100);
+	if (status == HAL_OK && readlength != 0)
+	{
+		status = HAL_SPI_Receive(&hSPI3, readBuffer, (uint16_t)readlength, 500);
+	}
 	DW1000_CS_HIGH();
 
-	return 0;
+	if (status != HAL_OK && readlength != 0)
+	{
+		memset(readBuffer, 0, readlength);
+	}
+	decamutexoff(irq_state);
+
+	return status == HAL_OK ? DWT_SUCCESS : DWT_ERROR;
 }
 
 /****************************************************************************//**
