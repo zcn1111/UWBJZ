@@ -28,6 +28,43 @@ static prev_range_t prev_range[MAX_TAG_LIST_SIZE];
 static uint8_t resp_valid = 0x00;                    //基站数据有效标志 
 static uint8_t sr, rr; //用于控制当前基站处于resp时是发送还是接收
 
+static struct
+{
+    uint32_t poll_rx;
+    uint32_t resp_tx;
+    uint32_t resp_tx_err;
+    uint32_t resp_no_irq;
+    uint32_t resp_rx_late;
+    uint32_t final_rx;
+} anc_diag;
+
+static uint8_t anc_diag_enabled;
+static uint8_t anc_diag_skip_prefix;
+static uint8_t anc_diag_collect;
+
+void anc_diag_set_mode(uint8_t enabled, uint8_t skip_prefix)
+{
+    if (enabled)
+    {
+        memset(&anc_diag, 0, sizeof(anc_diag));
+        anc_diag_skip_prefix = skip_prefix;
+    }
+    anc_diag_enabled = enabled;
+    anc_diag_collect = 0;  // 等下一次有效 Poll 再开始计数
+}
+
+void anc_diag_report(void)
+{
+    char line[192];
+    snprintf(line, sizeof(line),
+        "UWBdiagAnchor id=%u on=%u skip=%u poll_rx=%lu resp_tx=%lu tx_err=%lu no_irq=%lu rx_late=%lu final_rx=%lu\r\n",
+        (unsigned)anc_id, (unsigned)anc_diag_enabled, (unsigned)anc_diag_skip_prefix,
+        (unsigned long)anc_diag.poll_rx, (unsigned long)anc_diag.resp_tx,
+        (unsigned long)anc_diag.resp_tx_err, (unsigned long)anc_diag.resp_no_irq,
+        (unsigned long)anc_diag.resp_rx_late, (unsigned long)anc_diag.final_rx);
+    HAL_UART_Transmit(&hUSART3, (uint8_t *)line, (uint16_t)strlen(line), 50);
+}
+
 
 //uint8_t g_CalFlag = 0;
 uint8_t CalBUFFNum = 0;
@@ -161,11 +198,23 @@ void anchor_app(void)
                 range_time = portGetTickCnt();       //取得测距时间
                 poll_rx_ts = get_rx_timestamp_u64(); //获得poll_rx时间戳
 
+                anc_diag_collect = anc_diag_enabled;
+                if (anc_diag_collect)
+                    anc_diag.poll_rx++;
+
                 sr = MAX_AHCHOR_NUMBER;
                 rr = 0x01 << anc_id;
                 state = STA_SORR_RESP;
-//                led_on(LED2);
-//                led_on(LED3);
+                if (anc_diag_collect && anc_diag_skip_prefix && anc_id > 0 && anc_id < MAX_AHCHOR_NUMBER)
+                {
+                    /* 省去本基站发送前的 RX 操作，保留发出 Resp 后剩余的槽。 */
+                    sr = MAX_AHCHOR_NUMBER - 1 - anc_id;
+                    rr = 0;
+                    dwt_enableframefilter(DWT_FF_NOTYPE_EN);
+                    dwt_setrxtimeout(inst_resp_rx_timeout);
+                    dwt_setpreambledetecttimeout(PRE_TIMEOUT);
+                    state = STA_SEND_RESP;
+                }
             }
 #if defined (ANCRANGE)
             else if(rx_buffer[FUNC_CODE_IDX] == FUNC_CODE_SYNC)      //其他基站接收到基站A0的时间同步消息
@@ -238,6 +287,8 @@ void anchor_app(void)
                     int ret = dwt_rxenable(DWT_START_RX_DELAYED);          //延时开启接收机
                     if(ret == DWT_ERROR)
                     {
+						if (anc_diag_collect && rr != 0)
+							anc_diag.resp_rx_late++;
 						state = STA_INIT_POLL_SYNC;
                         break;
 						
@@ -346,6 +397,8 @@ void anchor_app(void)
             int ret = dwt_starttx(DWT_START_TX_DELAYED);  //延时发送
             if(ret == DWT_ERROR)
             {
+                if (anc_diag_collect)
+                    anc_diag.resp_tx_err++;
                 dwt_forcetrxoff();
                 state = STA_INIT_POLL_SYNC;
                 break;
@@ -359,7 +412,13 @@ void anchor_app(void)
 					break;
 				}					
 			}
-//            while(tx_status == TX_WAIT);//等待发送结束，状态在中断回调函数中变更
+			if (anc_diag_collect)
+			{
+				if (tx_status == TX_OK)
+					anc_diag.resp_tx++;
+				else
+					anc_diag.resp_no_irq++;
+			}
 			tx_status = TX_WAIT;
 			state = STA_SORR_RESP;
             break;
@@ -439,6 +498,8 @@ void anchor_app(void)
                 }
                 if((resp_valid >> anc_id) & 0x01) //final消息中，本基站发送的resp消息是有效的,则进行距离计算
                 {
+                    if (anc_diag_collect)
+                        anc_diag.final_rx++;
                     uint32_t poll_tx_ts, resp_rx_ts, final_tx_ts;
                     uint32_t poll_rx_ts_32, resp_tx_ts_32, final_rx_ts_32;
                     double Ra, Rb, Da, Db;

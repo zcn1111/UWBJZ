@@ -671,6 +671,40 @@ DbgResult_t Cmd_SetShowMode(uint8_t Argc, char *Argv[])
 	return DBGRET_ERR_ARG_ILLEGAL;
 }
 
+DbgResult_t Cmd_UwbDiag(uint8_t Argc, char *Argv[])
+{
+	if (instance_mode != ANCHOR)
+	{
+		debug_printf("uwbdiag requires anchor mode.\r\n");
+		return DBGRET_ERR_OTHER;
+	}
+	if (Argc > 2 || (Argc >= 1 && strcmp(Argv[1], "0") != 0 && strcmp(Argv[1], "1") != 0))
+	{
+		return DBGRET_ERR_ARG_ILLEGAL;
+	}
+
+	if (Argc == 2)
+	{
+		char *end;
+		long slot = strtol(Argv[2], &end, 10);
+		if (Argv[1][0] != '1' || end == Argv[2] || *end != '\0' || slot < 0 || slot >= MAX_AHCHOR_NUMBER)
+		{
+			return DBGRET_ERR_ARG_ILLEGAL;
+		}
+		if (slot != anc_id)
+		{
+			return DBGRET_ERR_ARG_OUTRANGE;
+		}
+	}
+
+	if (Argc >= 1)
+	{
+		anc_diag_set_mode(Argv[1][0] == '1', Argc == 2);
+	}
+	anc_diag_report();
+	return DBGRET_OK;
+}
+
 /* 设置用户数据 */
 DbgResult_t Cmd_SetUserdata(uint8_t Argc, char *Argv[])
 {
